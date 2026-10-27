@@ -29,6 +29,19 @@ local ID_DESATIVADO = "rbxassetid://106559516221683"
 local screenGui = Instance.new("ScreenGui", player.PlayerGui)
 screenGui.Name = "GhostModeGui"
 screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+
+-- // CONFIGURAÇÃO DE UISCALE SOLICITADA
+local UiScale = Instance.new("UIScale", screenGui)
+local function UpdateUIScale()
+    if not UserInputService.TouchEnabled then
+        UiScale.Scale = 1.9 -- 90% maior no PC
+    else
+        UiScale.Scale = 1.0 -- Tamanho padrão no mobile
+    end
+end
+UpdateUIScale()
+UserInputService:GetPropertyChangedSignal("TouchEnabled"):Connect(UpdateUIScale)
 
 local mainButton = Instance.new("ImageButton", screenGui)
 mainButton.Name = "FreeCamButton"
