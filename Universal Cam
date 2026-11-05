@@ -31,6 +31,11 @@ screenGui.Name = "GhostModeGui"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 
+-- [SPWN] Atributos de identificação persistente
+screenGui:SetAttribute("SPWN_ManagedScriptID", "GhostModeScript")
+screenGui:SetAttribute("SPWN_ManagedScriptName", "Ghost Mode FreeCam")
+screenGui:SetAttribute("SPWN_ManagedScriptCategory", "Ghost Mode FreeCam")
+
 -- // CONFIGURAÇÃO DE UISCALE SOLICITADA
 local UiScale = Instance.new("UIScale", screenGui)
 local function UpdateUIScale()
@@ -43,8 +48,9 @@ end
 UpdateUIScale()
 UserInputService:GetPropertyChangedSignal("TouchEnabled"):Connect(UpdateUIScale)
 
+-- [SPWN] Botão renomeado para OpenToggleButton (o Manager atua nele)
 local mainButton = Instance.new("ImageButton", screenGui)
-mainButton.Name = "FreeCamButton"
+mainButton.Name = "OpenToggleButton"
 mainButton.Size = UDim2.new(0, 70, 0, 70) 
 mainButton.Position = UDim2.new(0.05, 0, 0.5, 0)
 mainButton.Image = ID_DESATIVADO
@@ -174,4 +180,69 @@ end)
 UserInputService.InputEnded:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.E or input.KeyCode == Enum.KeyCode.Space then upValue = 0 end
     if input.KeyCode == Enum.KeyCode.Q or input.KeyCode == Enum.KeyCode.LeftControl then downValue = 0 end
+end)
+
+--------------------------------------------------
+-- [SPWN] ADAPTADOR PERSISTENTE
+--------------------------------------------------
+task.spawn(function()
+    local scriptId = "GhostModeScript"
+    local scriptConfig = {
+        Name = "Ghost Mode FreeCam",
+        Category = "Ghost Mode FreeCam",
+        GuiObject = screenGui,
+        OnDestroy = function()
+            -- [SPWN] Equivalente ao selfDestruct() original, MAS SEM script:Destroy()
+            -- porque matar o script aqui derrubaria o próprio adaptador.
+            -- O Manager é quem decide quando matar o script.
+            isFreeCam = false
+            pcall(function() RunService:UnbindFromRenderStep("GhostCamUpdate") end)
+
+            local char = player.Character
+            if char then
+                local root = char:FindFirstChild("HumanoidRootPart")
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if root then pcall(function() root.Anchored = false end) end
+                if hum then
+                    pcall(function()
+                        camera.CameraType = Enum.CameraType.Custom
+                        camera.CameraSubject = hum
+                    end)
+                end
+            end
+
+            pcall(function() screenGui:Destroy() end)
+        end
+    }
+
+    -- Garante a persistência global na memória
+    _G.ScriptManagerQueue = _G.ScriptManagerQueue or {}
+    _G.RegisteredScriptDatabase = _G.RegisteredScriptDatabase or {}
+
+    -- [SPWN] Lê visibilidade persistida em vez de hardcoded true
+    local persistedVis = screenGui:GetAttribute("SPWN_ManagedVisibility")
+
+    _G.RegisteredScriptDatabase[scriptId] = {
+        Name = scriptConfig.Name,
+        Category = scriptConfig.Category,
+        GuiObject = scriptConfig.GuiObject,
+        IsVisible = (persistedVis == nil) and true or persistedVis,
+        OnDestroy = scriptConfig.OnDestroy
+    }
+
+    local exists = false
+    for _, item in ipairs(_G.ScriptManagerQueue) do
+        if item.id == scriptId then
+            exists = true
+            item.config = scriptConfig
+            break
+        end
+    end
+    if not exists then
+        table.insert(_G.ScriptManagerQueue, {id = scriptId, config = scriptConfig})
+    end
+
+    if _G.ScriptManager and type(_G.ScriptManager.RegisterScript) == "function" then
+        _G.ScriptManager.RegisterScript(scriptId, scriptConfig)
+    end
 end)
